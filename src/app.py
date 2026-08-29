@@ -20,38 +20,70 @@ class SudokuApp:
         placement: KeypadPlacement = KeypadPlacement.AUTO,
         theme: Theme = LIGHT_THEME
     ) -> None:
-        pygame.init()
-        pygame.font.init()
+        # Ensure pygame subsystems are initialized
+        if not pygame.get_init():
+            pygame.init()
+        if not pygame.display.get_init():
+            pygame.display.init()
+        if not pygame.font.get_init():
+            pygame.font.init()
 
-        # Determine initial window resolution
-        info = pygame.display.Info()
-        detected_w = info.current_w
-        detected_h = info.current_h
-
-        # Default to portrait friendly size on desktop if detection yields huge resolution
-        if width and height:
-            self.screen_width = width
-            self.screen_height = height
-        elif detected_w > 1200 and detected_h > 800:
-            # Desktop window mode default
-            self.screen_width = 460
-            self.screen_height = 780
-        else:
-            # Mobile or small screen
-            self.screen_width = detected_w
-            self.screen_height = detected_h
-
-        self.screen: pygame.Surface = pygame.display.set_mode(
-            (self.screen_width, self.screen_height), pygame.RESIZABLE
-        )
-        pygame.display.set_caption("Sudoku")
-
-        self.clock: pygame.time.Clock = pygame.time.Clock()
+        self.requested_width = width
+        self.requested_height = height
+        self.placement = placement
         self.theme: Theme = theme
-        self.layout_manager: LayoutManager = LayoutManager(placement=placement)
 
+        self.screen_width: int = 460
+        self.screen_height: int = 780
+        self.screen: Optional[pygame.Surface] = None
+        self.clock: Optional[pygame.time.Clock] = None
+        self.layout_manager: LayoutManager = LayoutManager(placement=self.placement)
         self.is_running: bool = False
         self.current_scene: Optional[BaseScene] = None
+
+    def initialize_display(self) -> None:
+        """Initializes Pygame submodules and creates display surface safely."""
+        if not pygame.get_init():
+            pygame.init()
+        if not pygame.display.get_init():
+            pygame.display.init()
+        if not pygame.font.get_init():
+            pygame.font.init()
+
+        # Safely query display after init
+        detected_w, detected_h = 0, 0
+        try:
+            info = pygame.display.Info()
+            detected_w = info.current_w
+            detected_h = info.current_h
+        except Exception:
+            detected_w, detected_h = 0, 0
+
+        if self.requested_width and self.requested_height:
+            self.screen_width = self.requested_width
+            self.screen_height = self.requested_height
+        elif detected_w > 1200 and detected_h > 800:
+            self.screen_width = 460
+            self.screen_height = 780
+        elif detected_w > 0 and detected_h > 0:
+            self.screen_width = detected_w
+            self.screen_height = detected_h
+        else:
+            self.screen_width = 460
+            self.screen_height = 780
+
+        try:
+            self.screen = pygame.display.set_mode(
+                (self.screen_width, self.screen_height), pygame.RESIZABLE
+            )
+        except Exception:
+            self.screen = pygame.display.set_mode(
+                (self.screen_width, self.screen_height)
+            )
+
+        pygame.display.set_caption("Sudoku")
+        self.clock = pygame.time.Clock()
+        self.layout_manager = LayoutManager(placement=self.placement)
 
     def start_game(self, difficulty: Difficulty = Difficulty.MEDIUM) -> None:
         """Transitions to active gameplay scene."""
@@ -69,14 +101,21 @@ class SudokuApp:
         """Handles screen resolution change (window resize or device rotation)."""
         self.screen_width = max(300, new_w)
         self.screen_height = max(400, new_h)
-        self.screen = pygame.display.set_mode(
-            (self.screen_width, self.screen_height), pygame.RESIZABLE
-        )
+        try:
+            self.screen = pygame.display.set_mode(
+                (self.screen_width, self.screen_height), pygame.RESIZABLE
+            )
+        except Exception:
+            self.screen = pygame.display.set_mode(
+                (self.screen_width, self.screen_height)
+            )
         if self.current_scene:
             self.current_scene.on_resize(self.screen_width, self.screen_height)
 
     def run(self) -> None:
         """Main game loop."""
+        self.initialize_display()
+
         self.is_running = True
         self.show_menu()
 
@@ -105,4 +144,3 @@ class SudokuApp:
 
         pygame.quit()
         sys.exit()
-
