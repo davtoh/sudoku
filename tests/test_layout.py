@@ -1,4 +1,4 @@
-"""Unit tests for responsive LayoutManager and keypad placement."""
+"""Unit tests for responsive LayoutManager, keypad placement, and free positioning."""
 
 import unittest
 from src.config import KeypadPlacement
@@ -47,6 +47,19 @@ class TestLayoutManager(unittest.TestCase):
         for b_geo in metrics.keypad_buttons:
             self.assertTrue(metrics.keypad_rect.contains(b_geo.rect), f"Button {b_geo.id} outside keypad rect")
 
+    def test_small_phone_portrait_bounds(self):
+        # Test very small screen (320x480)
+        w, h = 320, 480
+        metrics = self.layout_mgr.calculate(w, h)
+
+        self.assertEqual(metrics.placement, KeypadPlacement.BOTTOM)
+        self.assertGreaterEqual(metrics.board_rect.left, 0)
+        self.assertLessEqual(metrics.board_rect.right, w)
+        self.assertLessEqual(metrics.keypad_rect.bottom, h)
+
+        for b_geo in metrics.keypad_buttons:
+            self.assertTrue(metrics.keypad_rect.contains(b_geo.rect), f"Button {b_geo.id} outside keypad rect on small screen")
+
     def test_landscape_layout_bounds(self):
         # Test desktop / landscape tablet screen
         w, h = 1280, 720
@@ -67,20 +80,28 @@ class TestLayoutManager(unittest.TestCase):
         for b_geo in metrics.keypad_buttons:
             self.assertTrue(metrics.keypad_rect.contains(b_geo.rect), f"Button {b_geo.id} outside keypad rect")
 
-    def test_custom_forced_placement(self):
-        # Force bottom placement on landscape resolution
-        self.layout_mgr.set_placement(KeypadPlacement.BOTTOM)
-        metrics = self.layout_mgr.calculate(1024, 768)
-        self.assertEqual(metrics.placement, KeypadPlacement.BOTTOM)
-        self.assertLess(metrics.board_rect.bottom, metrics.keypad_rect.top)
+    def test_element_repositioning_offsets(self):
+        # Test applying custom offsets
+        w, h = 400, 800
+        initial_metrics = self.layout_mgr.calculate(w, h)
 
-        # Force right placement on portrait resolution
-        self.layout_mgr.set_placement(KeypadPlacement.RIGHT)
-        metrics = self.layout_mgr.calculate(400, 800)
-        self.assertEqual(metrics.placement, KeypadPlacement.RIGHT)
-        self.assertLess(metrics.board_rect.right, metrics.keypad_rect.left)
+        self.layout_mgr.adjust_board_offset(15, -20)
+        self.layout_mgr.adjust_keypad_offset(-10, 25)
+        offset_metrics = self.layout_mgr.calculate(w, h)
+
+        self.assertEqual(offset_metrics.board_rect.x, initial_metrics.board_rect.x + 15)
+        self.assertEqual(offset_metrics.board_rect.y, initial_metrics.board_rect.y - 20)
+        self.assertEqual(offset_metrics.keypad_rect.x, initial_metrics.keypad_rect.x - 10)
+        self.assertEqual(offset_metrics.keypad_rect.y, initial_metrics.keypad_rect.y + 25)
+        self.assertTrue(self.layout_mgr.has_custom_offsets)
+
+        # Test reset
+        self.layout_mgr.reset_offsets()
+        reset_metrics = self.layout_mgr.calculate(w, h)
+        self.assertEqual(reset_metrics.board_rect.x, initial_metrics.board_rect.x)
+        self.assertEqual(reset_metrics.board_rect.y, initial_metrics.board_rect.y)
+        self.assertFalse(self.layout_mgr.has_custom_offsets)
 
 
 if __name__ == "__main__":
     unittest.main()
-

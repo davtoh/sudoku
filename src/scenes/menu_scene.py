@@ -1,7 +1,7 @@
 """Menu scene for difficulty selection and layout/theme settings."""
 
 import pygame
-from typing import List, Tuple, TYPE_CHECKING
+from typing import List, Tuple, Optional, TYPE_CHECKING
 from ..config import Difficulty, KeypadPlacement, Theme
 from .base_scene import BaseScene
 from ..ui.components import Button, Card, FontCache
@@ -18,6 +18,7 @@ class MenuScene(BaseScene):
         self.difficulty_buttons: List[Tuple[Button, Difficulty]] = []
         self.layout_buttons: List[Tuple[Button, KeypadPlacement]] = []
         self.theme_button: Optional[Button] = None
+        self.reset_positions_button: Optional[Button] = None
         self._rebuild_ui()
 
     def _rebuild_ui(self) -> None:
@@ -27,8 +28,8 @@ class MenuScene(BaseScene):
         scale = max(0.7, min(scale, 1.6))
 
         card_w = min(int(340 * scale), w - 40)
-        btn_h = max(42, int(52 * scale))
-        pad = max(8, int(12 * scale))
+        btn_h = max(38, int(48 * scale))
+        pad = max(6, int(10 * scale))
         start_x = (w - card_w) // 2
 
         # 1. Difficulty Buttons
@@ -40,7 +41,7 @@ class MenuScene(BaseScene):
             (Difficulty.EXPERT, "Expert", "25 clues"),
         ]
 
-        diff_start_y = int(h * 0.28)
+        diff_start_y = int(h * 0.25)
         for i, (diff, label, sub) in enumerate(diff_configs):
             rect = pygame.Rect(start_x, diff_start_y + i * (btn_h + pad), card_w, btn_h)
             btn = Button(rect=rect, label=label, subtext=sub, is_action=False, border_radius=10)
@@ -63,7 +64,7 @@ class MenuScene(BaseScene):
             btn.is_active = (self.app.layout_manager.preferred_placement == placement)
             self.layout_buttons.append((btn, placement))
 
-        # 3. Theme Toggle Button
+        # 3. Theme Toggle & Reset Position Buttons
         theme_y = layout_y + int(btn_h * 0.9) + pad * 2
         theme_rect = pygame.Rect(start_x, theme_y, card_w, int(btn_h * 0.8))
         theme_label = f"Theme: {self.app.theme.name.capitalize()}"
@@ -71,12 +72,22 @@ class MenuScene(BaseScene):
             rect=theme_rect, label=theme_label, is_action=False, border_radius=8
         )
 
+        # 4. Reset Custom Layout Positions Button (if custom offsets exist)
+        if self.app.layout_manager.has_custom_offsets:
+            reset_y = theme_y + int(btn_h * 0.8) + pad
+            reset_rect = pygame.Rect(start_x, reset_y, card_w, int(btn_h * 0.75))
+            self.reset_positions_button = Button(
+                rect=reset_rect, label="↺ Reset Custom Positions", is_action=True, border_radius=8
+            )
+        else:
+            self.reset_positions_button = None
+
     def on_resize(self, width: int, height: int) -> None:
         """Handles screen resize and recalculates button positions."""
         self._rebuild_ui()
 
     def handle_event(self, event: pygame.event.Event) -> None:
-        """Processes difficulty selection, layout mode change, and theme toggle."""
+        """Processes difficulty selection, layout mode change, theme toggle, and position reset."""
         # Difficulty selection
         for btn, diff in self.difficulty_buttons:
             if btn.handle_event(event):
@@ -96,6 +107,11 @@ class MenuScene(BaseScene):
             self.app.toggle_theme()
             self.theme_button.label = f"Theme: {self.app.theme.name.capitalize()}"
 
+        # Reset Positions
+        if self.reset_positions_button and self.reset_positions_button.handle_event(event):
+            self.app.layout_manager.reset_offsets()
+            self._rebuild_ui()
+
     def update(self, dt: float) -> None:
         pass
 
@@ -109,32 +125,35 @@ class MenuScene(BaseScene):
         scale = max(0.7, min(scale, 1.6))
 
         # Title
-        title_font = FontCache.get_font(int(46 * scale), bold=True)
+        title_font = FontCache.get_font(int(42 * scale), bold=True)
         title_surf = title_font.render("SUDOKU", True, theme.text_accent)
-        title_rect = title_surf.get_rect(center=(w // 2, int(h * 0.12)))
+        title_rect = title_surf.get_rect(center=(w // 2, int(h * 0.10)))
         surface.blit(title_surf, title_rect)
 
         # Subtitle
-        sub_font = FontCache.get_font(int(18 * scale))
+        sub_font = FontCache.get_font(int(16 * scale))
         sub_surf = sub_font.render("Choose a difficulty to begin", True, theme.text_secondary)
-        sub_rect = sub_surf.get_rect(center=(w // 2, int(h * 0.19)))
+        sub_rect = sub_surf.get_rect(center=(w // 2, int(h * 0.17)))
         surface.blit(sub_surf, sub_rect)
 
         # Render difficulty buttons
         for btn, _ in self.difficulty_buttons:
-            btn.render(surface, theme, font_size=int(22 * scale))
+            btn.render(surface, theme, font_size=int(20 * scale))
 
         # Layout Section Label
         if self.layout_buttons:
-            lbl_y = self.layout_buttons[0][0].rect.top - int(18 * scale)
+            lbl_y = self.layout_buttons[0][0].rect.top - int(16 * scale)
             lbl_surf = sub_font.render("Keypad Placement:", True, theme.text_secondary)
             lbl_rect = lbl_surf.get_rect(center=(w // 2, lbl_y))
             surface.blit(lbl_surf, lbl_rect)
 
             for btn, _ in self.layout_buttons:
-                btn.render(surface, theme, font_size=int(16 * scale))
+                btn.render(surface, theme, font_size=int(15 * scale))
 
         # Render theme toggle
         if self.theme_button:
-            self.theme_button.render(surface, theme, font_size=int(16 * scale))
+            self.theme_button.render(surface, theme, font_size=int(15 * scale))
 
+        # Render reset positions button if visible
+        if self.reset_positions_button:
+            self.reset_positions_button.render(surface, theme, font_size=int(14 * scale))
